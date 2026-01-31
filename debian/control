@@ -19,6 +19,10 @@ Build-Depends:
  libbluray-dev,
 # --enable-libdrm
  libdrm-dev [!amd64],
+# --enable-libshaderc
+ libshaderc-dev [arm64],
+# --enable-vulkan
+ libvulkan-dev [arm64],
 # --enable-gmp
  libgmp-dev,
 # --enable-libmp3lame

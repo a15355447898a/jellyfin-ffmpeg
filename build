@@ -109,5 +109,14 @@ else
     path="${3}"
 fi
 mkdir "${path}" &>/dev/null || true
-mmv "${package_temporary_dir}/deb/*.deb" "${path}/#1.deb"
-mmv "${package_temporary_dir}/deb/*_${arch}.*" "${path}/#1-${cli_release}_${arch}.#2"
+for f in "${package_temporary_dir}/deb/"*.deb; do
+    [[ -e "${f}" ]] || continue
+    mv "${f}" "${path}/$(basename "${f}")"
+done
+for f in "${package_temporary_dir}/deb/"*_"${arch}".*; do
+    [[ -e "${f}" ]] || continue
+    base="$(basename "${f}")"
+    ext="${base##*.}"
+    stem="${base%_${arch}.${ext}}"
+    mv "${f}" "${path}/${stem}-${cli_release}_${arch}.${ext}"
+done

@@ -683,6 +683,92 @@ prepare_extra_arm() {
     cp -a ${TARGET_DIR}/lib/librga.so* ${SOURCE_DIR}/rkrga
     echo "rkrga/librga.so* usr/lib/jellyfin-ffmpeg/lib" >> ${DPKG_INSTALL_LIST}
     popd
+
+    # Vulkan Headers
+    pushd ${SOURCE_DIR}
+    git clone -b v1.4.337 --depth=1 https://github.com/KhronosGroup/Vulkan-Headers.git
+    pushd Vulkan-Headers
+    mkdir build && pushd build
+    cmake \
+        ${CMAKE_TOOLCHAIN_OPT} \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=${TARGET_DIR} ..
+    make -j$(nproc) && make install
+    popd
+    popd
+    popd
+
+    # Vulkan ICD Loader (headless for arm64)
+    pushd ${SOURCE_DIR}
+    git clone -b v1.4.337 --depth=1 https://github.com/KhronosGroup/Vulkan-Loader.git
+    pushd Vulkan-Loader
+    mkdir build && pushd build
+    cmake \
+        ${CMAKE_TOOLCHAIN_OPT} \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=${TARGET_DIR} \
+        -DVULKAN_HEADERS_INSTALL_DIR="${TARGET_DIR}" \
+        -DCMAKE_INSTALL_SYSCONFDIR=${TARGET_DIR}/share \
+        -DCMAKE_INSTALL_DATADIR=${TARGET_DIR}/share \
+        -DCMAKE_INSTALL_LIBDIR=lib \
+        -DBUILD_TESTS=OFF \
+        -DBUILD_WSI_{XCB,XLIB,WAYLAND}_SUPPORT=OFF ..
+    make -j$(nproc) && make install
+    cp -a ${TARGET_DIR}/lib/libvulkan.so* ${SOURCE_DIR}/Vulkan-Loader
+    echo "Vulkan-Loader/libvulkan.so* usr/lib/jellyfin-ffmpeg/lib" >> ${DPKG_INSTALL_LIST}
+    popd
+    popd
+    popd
+
+    # SHADERC
+    shaderc_ver="v2025.5"
+    pushd ${SOURCE_DIR}
+    git clone -b ${shaderc_ver} --depth=1 https://github.com/google/shaderc.git
+    pushd shaderc
+    ./utils/git-sync-deps
+    mkdir build && pushd build
+    cmake \
+        ${CMAKE_TOOLCHAIN_OPT} \
+        -GNinja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=${TARGET_DIR} \
+        -DSHADERC_SKIP_{TESTS,EXAMPLES,COPYRIGHT_CHECK}=ON \
+        -DENABLE_{GLSLANG_BINARIES,EXCEPTIONS}=ON \
+        -DENABLE_CTEST=OFF \
+        -DSPIRV_SKIP_EXECUTABLES=ON \
+        -DSPIRV_TOOLS_BUILD_STATIC=ON \
+        -DBUILD_SHARED_LIBS=OFF ..
+    ninja -j$(nproc)
+    ninja install
+    cp -a ${TARGET_DIR}/lib/libshaderc_shared.so* ${SOURCE_DIR}/shaderc
+    echo "shaderc/libshaderc_shared* usr/lib/jellyfin-ffmpeg/lib" >> ${DPKG_INSTALL_LIST}
+    popd
+    popd
+    popd
+
+    # LIBPLACEBO
+    pushd ${SOURCE_DIR}
+    git clone -b v7.351.0 --recursive --depth=1 https://github.com/haasn/libplacebo.git
+    # Wa for the regression made in Mesa RADV
+    git -C libplacebo apply ${SOURCE_DIR}/builder/patches/libplacebo/*.patch
+    sed -i 's|env: python_env,||g' libplacebo/src/vulkan/meson.build
+    meson setup libplacebo placebo_build \
+        ${MESON_CROSS_OPT} \
+        --prefix=${TARGET_DIR} \
+        --libdir=lib \
+        --buildtype=release \
+        --default-library=shared \
+        -Dvulkan=enabled \
+        -Dvk-proc-addr=enabled \
+        -Dvulkan-registry=${TARGET_DIR}/share/vulkan/registry/vk.xml \
+        -Dshaderc=enabled \
+        -Dglslang=disabled \
+        -D{demos,tests,bench,fuzz}=false
+    meson configure placebo_build
+    ninja -j$(nproc) -C placebo_build install
+    cp -a ${TARGET_DIR}/lib/libplacebo.so* ${SOURCE_DIR}/libplacebo
+    echo "libplacebo/libplacebo* usr/lib/jellyfin-ffmpeg/lib" >> ${DPKG_INSTALL_LIST}
+    popd
 }
 
 # Prepare the cross-toolchain

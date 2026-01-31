@@ -70,6 +70,7 @@ CONFIG_ARM64 := --arch=arm64 \
 	--cross-prefix=/usr/bin/aarch64-linux-gnu- \
 	${CONFIG_ARM_COMMON} \
 	--enable-libshaderc \
+	--enable-libplacebo \
 	--enable-vulkan \
 	--enable-ffnvcodec \
 	--enable-cuda \
